@@ -1,0 +1,84 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+
+        # Auth Service — NO JWT check (login/register are public)
+        - id: auth-service-public
+          uri: lb://auth-service
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - StripPrefix=0
+
+        # Room Service — JWT required
+        - id: room-service
+          uri: lb://room-service
+          predicates:
+            - Path=/api/rooms/**
+          filters:
+            - StripPrefix=0
+            - JwtAuthenticationFilter
+
+        # Tenant Service — JWT required
+        - id: tenant-service
+          uri: lb://tenant-service
+          predicates:
+            - Path=/api/tenants/**
+          filters:
+            - StripPrefix=0
+            - JwtAuthenticationFilter
+
+        # Payment Service — JWT required
+        - id: payment-service
+          uri: lb://payment-service
+          predicates:
+            - Path=/api/payments/**
+          filters:
+            - StripPrefix=0
+            - JwtAuthenticationFilter
+
+        # Report Service — JWT required
+        - id: report-service
+          uri: lb://report-service
+          predicates:
+            - Path=/api/reports/**
+          filters:
+            - StripPrefix=0
+            - JwtAuthenticationFilter
+
+# MUST match Auth Service jwt.secret exactly
+jwt:
+  secret: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway
+  endpoint:
+    health:
+      show-details: always
+    gateway:
+      enabled: true
+
+logging:
+  level:
+    org.springframework.cloud.gateway: INFO
+    com.pg.gateway: DEBUG

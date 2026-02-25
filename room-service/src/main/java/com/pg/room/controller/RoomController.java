@@ -97,7 +97,7 @@ public class RoomController {
 
     // ── Internal endpoint — called by Tenant Service ──────
 
-    @PatchMapping("/{id}/occupancy")
+    @PutMapping("/{id}/occupancy")
     @Operation(summary = "Update occupancy count — internal use by Tenant Service")
     public ResponseEntity<Void> updateOccupancy(
             @PathVariable Long id,
