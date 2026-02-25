@@ -1,4 +1,4 @@
-package com.pg.tenant.exception;
+package com.pg.report.exception;
 // Throw this for business rule violations:
 //   - Room is full
 //   - Overpayment attempt

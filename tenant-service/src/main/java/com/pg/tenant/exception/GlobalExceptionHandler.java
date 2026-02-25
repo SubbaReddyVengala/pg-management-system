@@ -1,51 +1,58 @@
 package com.pg.tenant.exception;
 
 import feign.FeignException;
-import lombok.Builder;
-import lombok.Data;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import java.time.LocalDateTime;
+
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    // 404 — Resource not found
     @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<ErrorResponse> handleNotFound(ResourceNotFoundException ex) {
-        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+    public ResponseEntity<ErrorResponse> handleNotFound(
+            ResourceNotFoundException ex) {
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
                 .body(ErrorResponse.of("NOT_FOUND", ex.getMessage()));
     }
 
+    // 422 — Business rule violation
     @ExceptionHandler(BusinessException.class)
-    public ResponseEntity<ErrorResponse> handleBusiness(BusinessException ex) {
-        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+    public ResponseEntity<ErrorResponse> handleBusiness(
+            BusinessException ex) {
+        return ResponseEntity
+                .status(HttpStatus.UNPROCESSABLE_ENTITY)
                 .body(ErrorResponse.of("BUSINESS_ERROR", ex.getMessage()));
     }
 
+    // 409 — Duplicate data (email already exists, duplicate rent record)
     @ExceptionHandler(IllegalStateException.class)
-    public ResponseEntity<ErrorResponse> handleConflict(IllegalStateException ex) {
-        return ResponseEntity.status(HttpStatus.CONFLICT)
+    public ResponseEntity<ErrorResponse> handleConflict(
+            IllegalStateException ex) {
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
                 .body(ErrorResponse.of("CONFLICT", ex.getMessage()));
     }
 
-    // Handles errors when Room Service is down or returns an error
-    @ExceptionHandler(FeignException.class)
-    public ResponseEntity<ErrorResponse> handleFeign(FeignException ex) {
-        if (ex.status() == 404) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ErrorResponse.of("ROOM_NOT_FOUND", "Room not found in Room Service"));
-        }
-        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                .body(ErrorResponse.of("ROOM_SERVICE_ERROR",
-                        "Room Service unavailable: " + ex.getMessage()));
+    // 403 — Insufficient role (@PreAuthorize fails)
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ErrorResponse> handleAccessDenied(
+            AccessDeniedException ex) {
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(ErrorResponse.of("ACCESS_DENIED",
+                        "You do not have permission to perform this action"));
     }
 
+    // 400 — Validation error (@Valid fails on request body)
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidation(
             MethodArgumentNotValidException ex) {
@@ -53,32 +60,33 @@ public class GlobalExceptionHandler {
         for (FieldError err : ex.getBindingResult().getFieldErrors()) {
             fieldErrors.put(err.getField(), err.getDefaultMessage());
         }
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
                 .body(ErrorResponse.ofValidation(fieldErrors));
     }
+    // 503 — Feign call to another service failed
+    @ExceptionHandler(FeignException.class)
+    public ResponseEntity<ErrorResponse> handleFeign(
+            FeignException ex) {
+        if (ex.status() == 404) {
+            return ResponseEntity
+                    .status(HttpStatus.NOT_FOUND)
+                    .body(ErrorResponse.of("NOT_FOUND",
+                            "Resource not found in upstream service"));
+        }
+        return ResponseEntity
+                .status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(ErrorResponse.of("SERVICE_ERROR",
+                        "Upstream service unavailable: " + ex.getMessage()));
+    }
 
+    // 500 — Unexpected error (always log these)
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGeneral(Exception ex) {
         ex.printStackTrace();
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(ErrorResponse.of("INTERNAL_ERROR", ex.getMessage()));
-    }
-
-    @Data @Builder
-    public static class ErrorResponse {
-        private String              errorCode;
-        private String              message;
-        private Map<String, String> fieldErrors;
-        private LocalDateTime       timestamp = LocalDateTime.now();
-
-        public static ErrorResponse of(String code, String msg) {
-            return ErrorResponse.builder().errorCode(code).message(msg).build();
-        }
-        public static ErrorResponse ofValidation(Map<String, String> errs) {
-            return ErrorResponse.builder()
-                    .errorCode("VALIDATION_ERROR")
-                    .message("Input validation failed")
-                    .fieldErrors(errs).build();
-        }
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ErrorResponse.of("INTERNAL_ERROR",
+                        "An unexpected error occurred: " + ex.getMessage()));
     }
 }
