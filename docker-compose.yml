@@ -1,0 +1,245 @@
+version: "3.8"
+
+services:
+
+  # ── DATABASES ──────────────────────────────────────────
+
+  auth-db:
+    image: postgres:16-alpine
+    container_name: auth-db
+    environment:
+      POSTGRES_DB: auth_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - auth-db-data:/var/lib/postgresql/data
+    networks:
+      - pg-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d auth_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  room-db:
+    image: postgres:16-alpine
+    container_name: room-db
+    environment:
+      POSTGRES_DB: room_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - room-db-data:/var/lib/postgresql/data
+    networks:
+      - pg-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d room_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  tenant-db:
+    image: postgres:16-alpine
+    container_name: tenant-db
+    environment:
+      POSTGRES_DB: tenant_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - tenant-db-data:/var/lib/postgresql/data
+    networks:
+      - pg-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d tenant_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  payment-db:
+    image: postgres:16-alpine
+    container_name: payment-db
+    environment:
+      POSTGRES_DB: payment_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - payment-db-data:/var/lib/postgresql/data
+    networks:
+      - pg-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d payment_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── EUREKA SERVER ──────────────────────────────────────
+
+  eureka-server:
+    build: ./eureka-server
+    container_name: eureka-server
+    ports:
+      - "8761:8761"
+    networks:
+      - pg-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8761/actuator/health | grep UP || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ── BUSINESS SERVICES ──────────────────────────────────
+
+  auth-service:
+    build: ./auth-service
+    container_name: auth-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://auth-db:5432/auth_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      JWT_SECRET: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+    depends_on:
+      auth-db:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - pg-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health | grep UP || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  room-service:
+    build: ./room-service
+    container_name: room-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://room-db:5432/room_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      JWT_SECRET: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+    depends_on:
+      room-db:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+    networks:
+      - pg-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health | grep UP || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  tenant-service:
+    build: ./tenant-service
+    container_name: tenant-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://tenant-db:5432/tenant_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      JWT_SECRET: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+    depends_on:
+      tenant-db:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+      room-service:
+        condition: service_healthy
+    networks:
+      - pg-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8083/actuator/health | grep UP || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  payment-service:
+    build: ./payment-service
+    container_name: payment-service
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://payment-db:5432/payment_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      JWT_SECRET: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+    depends_on:
+      payment-db:
+        condition: service_healthy
+      eureka-server:
+        condition: service_healthy
+      tenant-service:
+        condition: service_healthy
+    networks:
+      - pg-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8084/actuator/health | grep UP || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  report-service:
+    build: ./report-service
+    container_name: report-service
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      JWT_SECRET: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      payment-service:
+        condition: service_healthy
+    networks:
+      - pg-network
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8085/actuator/health | grep UP || exit 1"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  # ── API GATEWAY (starts last) ───────────────────────────
+
+  api-gateway:
+    build: ./api-gateway
+    container_name: api-gateway
+    ports:
+      - "8080:8080"      # Only this port is exposed to host machine
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8761/eureka/
+      JWT_SECRET: 404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      auth-service:
+        condition: service_healthy
+      room-service:
+        condition: service_healthy
+      tenant-service:
+        condition: service_healthy
+      payment-service:
+        condition: service_healthy
+      report-service:
+        condition: service_healthy
+    networks:
+      - pg-network
+
+# ── VOLUMES ─────────────────────────────────────────────
+volumes:
+  auth-db-data:
+  room-db-data:
+  tenant-db-data:
+  payment-db-data:
+
+# ── NETWORK ─────────────────────────────────────────────
+networks:
+  pg-network:
+    driver: bridge
