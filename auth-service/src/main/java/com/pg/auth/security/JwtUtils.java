@@ -67,4 +67,28 @@ public class JwtUtils {
         byte[] keyBytes = Decoders.BASE64.decode(secret);
         return Keys.hmacShaKeyFor(keyBytes);
     }
+    // Validates existing token and issues a new one with fresh 24hr expiry
+// Called by the refresh endpoint in AuthController
+    public String refreshToken(String oldToken) {
+        try {
+            // Re-use your existing extractAllClaims() method
+            Claims claims = extractAllClaims(oldToken);
+
+            // Build new token with same subject/role/email but fresh expiry
+            return Jwts.builder()
+                    .setSubject(claims.getSubject())
+                    .claim("role",  claims.get("role",  String.class))
+                    .claim("email", claims.get("email", String.class))
+                    .setIssuedAt(new Date())
+                    .setExpiration(new Date(
+                            System.currentTimeMillis() + 86400000L)) // 24 hours
+                    .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+                    .compact();
+
+        } catch (JwtException | IllegalArgumentException e) {
+            throw new RuntimeException(
+                    "Token is invalid or expired. Please login again.");
+        }
+    }
+
 }

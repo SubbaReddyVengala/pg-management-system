@@ -11,7 +11,7 @@ public interface RoomServiceClient {
     @GetMapping("/api/rooms/{id}")
     RoomResponse getRoomById(@PathVariable("id") Long id);
 
-    @PutMapping("/api/rooms/{id}/occupancy")
+    @PostMapping("/api/rooms/{id}/occupancy")
     void updateOccupancy(@PathVariable("id") Long id,
                          @RequestParam("delta") int delta);
 }

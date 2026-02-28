@@ -31,6 +31,7 @@ public class JwtAuthenticationFilter
     private static final List<String> PUBLIC_ENDPOINTS = List.of(
             "/api/auth/register",
             "/api/auth/login",
+            "/api/auth/refresh",
             "/actuator",
             "/eureka"
     );
